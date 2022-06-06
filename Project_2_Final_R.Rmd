@@ -1,0 +1,223 @@
+---
+title: "Project 2 - Final"
+output: html_notebook
+---
+
+### Introduction
+Scientific Question: How similar is the gene sequence of the Black Perigord truffle (*Tuber melanosporum*) of its fruit body stage compared to its free-living mycelium stage, and what can this tell us about the truffle's characteristics?
+
+Background: The Black Perigord truffle (*T. melanosporum*) has a life cycle that includes the developmental stages of fruit body (FB) and free-living mycelium (FLM), among other stages. This project will just focus on these 2 stages. From scientific articles regarding T. melanosporum, it has been found that different elements/factors of the truffle's gene expression could be found. For instance, it was found that a specific enzyme tyrosinase was expressed during the black truffle's developing stages and cycle, and it changes in expression at different stages. So using this knowledge, I wanted to explore how this gene expression could perhaps allow for connections to be made between the developing stages and genes to form conclusions about the truffle.
+
+Scientific Hypothesis: If there is a similar sequence found in both the FM and FLM stages that align with each other and is involved in the truffle's volatility, then the specific sequence identified has the most impact on the truffle's aroma.
+
+Analyses: The analyses that will be done are RNAseq, RSCU analysis, and multiple sequence alignment (MSA). The results will be plotted as a volcano plot and principal component analysis (PCA).
+
+Data: To obtain the data used for this project, txt files were obtained from Gene Expression Omnibus (GEO) from an experiment that involved performing whole-genome sequencing and RNA-sequencing on the different developmental stages of *T. melanosporum* (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE49700). The specific file that was used is named "GSE49700_FB_FLM.RNA.txt" and it lists values of each gene involved that represent their level of expression. The second set of data files used was obtained from the NCBI database (https://www.ncbi.nlm.nih.gov/nuccore/FN430075). Here specifically, a FASTA file of the truffle's nucleotide sequence was downloaded.
+
+### Loading in Packages
+Package definitions:
+
+1. BiocManager: This package is from Bioconductor and would be used for RNAseq. Packages from Bioconductor are generally used to perform statistical analyses related to gene expression.
+
+2. DESeq2: This package is also part of Bioconductor, and it performs differential gene expression analysis for the RNAseq analysis method.
+
+3. coRdon: This package is used for codon usage (CU) analysis & can predict gene expressivity in DNA sequences using calculated ratios of CU bias.
+
+4. seqinr: This package is used to analyze data for DNA and protein sequences. For this project, it is used to read in FASTA files.
+
+4. Biostrings: This package is part of Bioconductor and can analyze DNA and protein sequences using algorithms. Here, it's used to load the truffle's DNA sequence after the FASTA file has been read in.
+
+6. msa: The msa package performs multiple sequence alignment using algorithms, which can then show how similar or different DNA or protein sequences are compared to each other.
+
+7. ggplot2: This package is from CRAN and can be used to visualize data by creating plots and graphics in general based on the data. In this project, it is used in the volcano plot method.
+
+8. devtools: The devtools package is part of CRAN and contains various package development tools that simplify functions in R. Here, this package is used to perform PCA.
+
+9. ggbiplot: This package is involved in plotting PCA results. It includes more features in addition to plotting points; you can also label the groups and visualize correlations in the PCA plot.
+
+```{r}
+#Install/load packages
+library(BiocManager)
+library(DESeq2)
+library(coRdon)
+library(seqinr)
+library(Biostrings)
+library(msa)
+library(ggplot2)
+library(devtools)
+library(ggbiplot)
+```
+
+### Performing Bioinformatics Analysis
+#### RSCU analysis
+Description: Relative synonymous codon usage (RSCU) analysis measures codon usage bias, which is when genes can be regulated to have certain preferences for specific codons for translation. This type of bioinformatics method can help us predict the relative gene expression level of T. melanosporum's protein. We can use this to make conclusions about whether or not there are certain sequences in the gene that may have a greater contribution to the truffle's aroma based on the codons that appear to have a higher preference. The value that results from this analysis represents the ratio of observed and expected codon frequency. The website that was used as reference for the code was https://www.bioconductor.org/packages/devel/bioc/vignettes/coRdon/inst/doc/coRdon.html.
+
+```{r}
+truffle_sequence <- read.fasta(file = "protein1.fasta")
+truffle_sequence
+```
+
+```{r}
+#Load truffle sequence
+truffle_codon <- readSet(file = "sequence.fasta")
+truffle_codon_table <- codonTable(truffle_codon)
+```
+
+```{r}
+#Read codon counts
+cc <- codonCounts(truffle_codon_table)
+head(cc)
+```
+
+```{r}
+#Calculate CU bias
+milc <- MILC(truffle_codon_table, ribosomal = TRUE)
+head(milc)
+```
+
+#### RNAseq
+Description: The RNAseq method, or differential expression analysis, can help with analyzing data regarding the gene expression levels of certain proteins. In this case, it can show how much RNA is being expressed at the 2 developmental stages that I will be analyzing for the various proteins that are involved with the black truffle's volatile organic compounds and therefore its aroma. The example code is referenced from https://www.bioconductor.org/packages/devel/bioc/vignettes/coRdon/inst/doc/coRdon.html and the DataCamp 4 Answer Key from BIMM 143's Canvas.
+
+```{r}
+#Read in truffle FB and FLM file
+truffle_dataframe <- read.delim("GSE49700_FB_FLM.RNA.txt")
+truffle_dataframe
+```
+
+```{r}
+#Raw counts
+truffle_subset <- subset(truffle_dataframe, select = c(gene, FB, FLM, RPKM_FB, RPKM_FLM))
+truffle_subset
+```
+
+```{r}
+#extract metadata columns by extracting column names into a vector
+row_name <- c(names(truffle_dataframe))
+print(row_name)
+```
+```{r}
+#combine into metadata columns to describe condition of columns
+FB_data <- c("FB", "FB")
+FLM_data <- "FLM"
+
+metadata_matrix <- data.frame(FB_data, FLM_data)
+#rownames(metadata_matrix) <- row_name
+print(metadata_matrix)
+```
+
+```{r}
+#Create matrix from truffle FB/FLM data
+full_matrix <- as.matrix(truffle_dataframe)
+head(full_matrix)
+```
+
+```{r}
+#Print structure of dataframe
+print(str(truffle_dataframe))
+```
+
+```{r}
+#Create metadata columns by extracting column names into a vector
+gene_FB_FLM <- full_matrix[,c(4,5)]
+```
+
+```{r}
+#Code for RNAseq
+
+#Read in raw counts
+#Create metadata
+#Combine counts & metadata matrices
+#Create DESeq object
+dds <- DESeqDataSetFromMatrix(countData = _, colData = _, design = ~ condition)
+print(dds)
+
+dds <- estimateSizeFactors(dds)
+sizeFactors(dds)
+
+normalized_counts <- counts(dds, normalized = TRUE)
+View (normalized_counts)
+
+#Unsupervised clustering - transforming the data
+vsd <- varianceStabilizingTransformation(dds)
+
+#Extract vst matrix from object
+vsd_matrix <- assay(vsd)
+
+#Compute pairwise correlation values
+vsd_cor <- cor(vsd_matrx)
+View(vsd_cor)
+```
+
+```{r}
+# Visualize FB gene expression vs. FLM gene expression
+FB <- truffle_dataframe$FB
+FLM <- truffle_dataframe$FLM
+
+plot(x = FB, y = FLM)
+```
+
+#### Multiple sequence alignment (MSA)
+Description: This bioinformatics method using an algorithm to align sequences, which can be used to compare the sequences for similarities in regions of the sequences. This can be helpful for finding similarities in regions of the sequences and identifying any significant differences.
+
+```{r}
+#Read in sequences
+library(seqinr)
+truffle_18_sequence <- read.fasta("sequence.fasta")
+```
+
+```{r}
+#Perform MSA
+
+#Read nucleotide FASTA file as AA sequence
+protein_sequence <- readAAStringSet("sequence.fasta")
+head(protein_sequence)
+```
+
+```{r}
+#Run MSA
+alignment <- msa(truffle_18_sequence)
+
+print(alignment, show = "complete")
+```
+
+### Plotting the Results
+#### Volcano plot
+Description: This visualization method is a scatterplot that displays points representing the p-value (which represents statistical significance) along the y-axis and fold change (the magnitude of change) of the data along the x-axis. Here, the p-value and fold change values were already provided in the truffle FB & FLM dataset, so those values were plotted. The code was references from this website: https://biocorecrg.github.io/CRG_RIntroduction/volcano-plots.html.
+
+```{r}
+#Extract objects for volcano plot from truffle_dataframe
+log2_ratio <- truffle_dataframe$log2ratio
+p_value <- truffle_dataframe$pval
+```
+
+```{r}
+#Create plot
+ggplot(data = truffle_dataframe, aes(x = log2_ratio, y = p_value)) + geom_point()
+```
+
+```{r}
+#Convert p-value to -log10(p-value) to get volcano plot to get a volcano plot
+ggplot(data = truffle_dataframe, aes(x = log2_ratio, y = -log10(p_value))) + geom_point()
+```
+
+#### Principal component analysis (PCA)
+Description: PCA is a bioinformatics visualization method that uses principal components to summarize a large amount of data into a smaller data set. This makes it easier to see and analyze the data and to draw comparisons between between various variables. The code used here was referenced from https://www.datacamp.com/tutorial/pca-analysis-r#simple.
+```{r}
+#PCA code
+truffle.pca <- prcomp(truffle_dataframe[,c(3,4,5,6,7)], center = TRUE, scale = TRUE)
+summary(truffle.pca)
+str(truffle.pca)
+```
+
+```{r}
+#Plot PCA
+ggbiplot(truffle.pca, labels = rownames(truffle_dataframe))
+```
+
+```{r}
+#Plot but scaled
+ggbiplot(truffle.pca, labels = rownames(truffle_dataframe), scale = -5)
+```
+
+### Analyzing the Results
+The RSCU analysis results in a codon usage bias ratio of 0.4998902, which is the ratio that compares the observed to the expected codon frequency. The ratio indicates that the same codons are used almost half of the time in the T. melanosporum DNA sequence. This suggests that there could be certain regions in the sequence that are repeated and could contribute to specific characteristics of the truffle. For RNAseq, I wasn't able to get the code to work because I couldn't find any raw counts data files from any database. However, I used the gene expression reads provided by one of the data files I found (read in the "truffle_dataframe" variable), and I used those given values to make a plot to see how the expression levels in the FB stage compared to the FLM stage for each gene. It appears that they mostly have similar levels of expression, as the data points are clustered towards the lower left corner of the plot. For MSA, I also couldn't find data files from any database that would help me compare the truffle's gene sequence between different developmental stages. But if I were to perform MSA, the resulting alignment would reveal differences between the sequences if there are any present. For plotting the results, the volcano plot displays the relationship between the p-values and fold changes that were provided by one of the data files. According to the plot, the "V"-shape appears to be fairly spread out, which suggests that there isn't a strong correlation between the 2 variables. From the PCA plot, the results show that there was a variance of 45.0% for PC1 and 30.4% for PC2. The data points are clustered towards 0 of the x-axis, fanning out towards the left. The variables that were compared here were gene expression levels and length of the gene, so it can be concluded that there is not much similarity between these variables due to the relatively low percentages.
